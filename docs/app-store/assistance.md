@@ -1,22 +1,21 @@
 # Assistance Moto Power
 
-Moto Power est une application iPhone qui affiche le tableau de bord
-d'un trajet en moto : vitesse GPS, accélération, inclinaison, temps
-0–50 et 0–80 km/h, historique des trajets.
+Moto Power est une application iPhone qui affiche le tableau de bord d'un
+trajet en moto : vitesse GPS, accélération, inclinaison, temps d'accélération
+(0–100, 0–200, 80–120 km/h…), records, statistiques, historique des trajets.
 
 ## Nous contacter
 
-Une question, un problème ou une suggestion ? Écrivez à contact@manaprocess.com.
-Indiquez votre modèle d'iPhone et votre version d'iOS : cela nous aide à
-vous répondre plus vite.
+Une question, un problème ou une suggestion ? Écrivez à
+contact@manaprocess.com. Indiquez votre modèle d'iPhone et votre version
+d'iOS : cela nous aide à vous répondre plus vite.
 
 ## Bien démarrer
 
 - Fixez le téléphone au guidon, écran face à vous.
 - Moto droite et à l'arrêt, touchez « Démarrer le trajet ». La position du
   téléphone à cet instant sert de référence pour l'inclinaison.
-- Acceptez l'accès à la position et aux mouvements à la première
-  utilisation.
+- Acceptez l'accès à la position et aux mouvements à la première utilisation.
 - À l'arrivée, touchez « Terminer le trajet ». Le trajet est enregistré dans
   l'historique, accessible par l'icône d'horloge.
 
@@ -36,21 +35,22 @@ Power → Position et choisissez « Lorsque l'app est active ».
 
 ## L'inclinaison semble décalée
 
-Le téléphone a bougé dans son support. Moto droite, ouvrez le menu « ••• »
-en haut de l'écran et touchez « Recalibrer l'inclinaison ».
+Le téléphone a bougé dans son support. Moto droite, ouvrez le menu « ••• » en
+haut de l'écran et touchez « Recalibrer l'inclinaison ».
 
 ## Les temps d'accélération restent vides
 
-Les départs arrêtés (0–30, 0–50, 0–80, 0–100, 0–150, 0–200 km/h) ne se mesurent qu'après un arrêt
-complet. Les reprises (50–90, 50–100, 80–120 km/h) partent de l'instant où vous
-franchissez 50 ou 80 km/h en accélérant. Dans les deux cas, l'accélération doit
-être continue : le chrono s'annule si vous ralentissez en cours de route. Le GPS ne fournissant qu'une position par seconde, les temps sont
-indicatifs.
+Les départs arrêtés (0–30, 0–50, 0–80, 0–100, 0–150, 0–200 km/h) ne se
+mesurent qu'après un arrêt complet. Les reprises (50–90, 50–100, 80–120 km/h)
+partent de l'instant où vous franchissez 50 ou 80 km/h en accélérant. Dans les
+deux cas, l'accélération doit être continue : le chrono s'annule si vous
+ralentissez en cours de route. Le GPS ne fournissant qu'une position par
+seconde, les temps sont indicatifs.
 
 ## Rien ne s'affiche sur l'écran verrouillé
 
-Vérifiez que les activités en direct sont autorisées dans Réglages →
-Moto Power.
+Vérifiez que les activités en direct sont autorisées dans Réglages → Moto
+Power.
 
 ## La batterie baisse vite
 
@@ -59,11 +59,13 @@ trajet. Sur un long parcours, branchez le téléphone.
 
 ## Supprimer mes données
 
-Un trajet se supprime en le faisant glisser vers la gauche dans
-l'historique. Supprimer l'application efface tous les trajets. Aucune donnée
-n'est conservée ailleurs que sur votre iPhone.
+Un trajet se supprime en le faisant glisser vers la gauche dans l'historique.
+Supprimer l'application efface tous les trajets. Vos trajets ne sont conservés
+que sur votre iPhone. Si vous avez activé les classements ou le suivi en
+direct, désactivez l'option dans l'app pour retirer vos chronos ou effacer la
+position partagée ; quitter une balade de groupe efface la vôtre.
 
 ## Sécurité
 
-Ne manipulez jamais l'application en roulant. Les mesures sont indicatives
-et ne remplacent pas le compteur du véhicule.
+Ne manipulez jamais l'application en roulant. Les mesures sont indicatives et
+ne remplacent pas le compteur du véhicule.
