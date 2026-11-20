@@ -1,8 +1,9 @@
 import SwiftUI
 import MotoCore
 
-/// Temps d'accélération : départs arrêtés (0–30, 0–50, 0–80 km/h) et reprises
-/// lancées (50–90, 50–100 km/h). Pour chaque plage : le meilleur temps du
+/// Temps d'accélération du compteur en direct : en km/h, départs arrêtés
+/// (0–50, 0–100, 0–150, 0–200) et reprises lancées (50–100, 80–120) ; les
+/// autres plages mesurées se lisent dans le résumé et les records. Pour chaque plage : le meilleur temps du
 /// trajet, une barre qui se remplit à l'approche du record, et le record
 /// tous trajets confondus. Pendant une mesure, le chrono tourne à gauche.
 struct SprintCard: View {
@@ -21,7 +22,7 @@ struct SprintCard: View {
     var body: some View {
         HStack(spacing: 4) {
             status
-            ForEach(SpeedInterval.displayed.indices, id: \.self) { index in
+            ForEach(Self.shownIndices, id: \.self) { index in
                 cell(index)
             }
         }
@@ -30,6 +31,12 @@ struct SprintCard: View {
         .frame(maxWidth: .infinity)
         .cardStyle()
         .animation(.easeInOut(duration: 0.2), value: isRunning)
+    }
+
+    /// Indices, dans `SpeedInterval.displayed`, des plages montrées sur la carte.
+    private static var shownIndices: [Int] {
+        let displayed: [SpeedInterval] = SpeedInterval.displayed
+        return SpeedInterval.dashboard(for: AppSettings.shared.units).compactMap { displayed.firstIndex(of: $0) }
     }
 
     private func text(_ list: [String], at index: Int) -> String {
@@ -109,9 +116,9 @@ struct SprintCard: View {
 
 #Preview {
     SprintCard(
-        times: ["2,9 s", "5,8 s", "9,6 s", "4,1 s", "--"],
-        records: ["2,4 s", "5,8 s", "9,1 s", "4,0 s", "6,8 s"],
-        progress: [0.83, 1, 0.95, 0.98, 0],
+        times: ["1,4 s", "2,1 s", "3,0 s", "3,9 s", "6,8 s", "--", "2,6 s", "3,1 s", "--"],
+        records: ["1,3 s", "2,1 s", "2,8 s", "3,6 s", "6,5 s", "11,9 s", "2,4 s", "3,0 s", "2,7 s"],
+        progress: [0.93, 1, 0.93, 0.92, 0.96, 0, 0.92, 0.97, 0],
         beaten: [1],
         isRunning: false,
         elapsedText: "")

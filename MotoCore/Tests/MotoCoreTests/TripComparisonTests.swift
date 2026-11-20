@@ -18,7 +18,8 @@ final class TripComparisonTests: XCTestCase {
         let rows = TripComparison.rows(trip(), trip())
         XCTAssertEqual(rows.map(\.metric), [
             .distance, .movingDuration, .totalDuration, .maxSpeed, .averageSpeed,
-            .sprint30, .sprint50, .sprint80, .sprint100, .roll90, .roll100,
+            .sprint30, .sprint50, .sprint80, .sprint100, .interval(.zeroTo150), .interval(.zeroTo200),
+            .roll90, .roll100, .interval(.eightyTo120),
             .peakAcceleration, .maxLeanLeft, .maxLeanRight,
         ])
     }

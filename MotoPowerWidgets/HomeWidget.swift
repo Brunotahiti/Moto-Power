@@ -57,14 +57,14 @@ struct HomeWidgetView: View {
         switch family {
         case .accessoryCircular:
             VStack(spacing: 0) {
-                Image(systemName: "moto").font(.system(size: 14, weight: .bold))
+                Image(systemName: "motorcycle").font(.system(size: 14, weight: .bold))
                 Text(snapshot.weekDistance.split(separator: " ").first.map(String.init) ?? "")
                     .font(.system(size: 15, weight: .bold, design: .rounded))
                     .minimumScaleFactor(0.6)
             }
         case .accessoryRectangular:
             VStack(alignment: .leading, spacing: 1) {
-                Label(snapshot.weekTitle, systemImage: "moto")
+                Label(snapshot.weekTitle, systemImage: "motorcycle")
                     .font(.caption2.weight(.semibold))
                 Text(snapshot.weekDistance)
                     .font(.system(size: 20, weight: .bold, design: .rounded))
@@ -91,7 +91,7 @@ struct HomeWidgetView: View {
     private var week: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 5) {
-                Image(systemName: "moto")
+                Image(systemName: "motorcycle")
                     .foregroundStyle(HomeColors.cyan)
                 Text(snapshot.weekTitle)
                     .foregroundStyle(HomeColors.secondary)

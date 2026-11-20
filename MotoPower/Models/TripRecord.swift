@@ -28,6 +28,9 @@ final class TripRecord {
     /// Meilleurs temps sur les plages en mph (« 0-60 » → secondes), encodés en JSON ;
     /// absents des trajets faits avant la version qui les mesure.
     var imperialTimesData: Data?
+    /// Meilleurs temps sur les plages en km/h sans champ dédié (« 0-150 », « 0-200 »,
+    /// « 80-120 » → secondes), encodés en JSON.
+    var metricTimesData: Data?
     /// Moto du garage utilisé pour ce trajet (`Moto.uid`) ; absent des trajets anciens.
     var motoID: String?
     /// Nom donné par le pilote ; sans nom, le trajet est désigné par sa date.
@@ -80,6 +83,11 @@ final class TripRecord {
             if let time = summary.best(interval) { imperial[Self.key(interval)] = time }
         }
         self.imperialTimesData = imperial.isEmpty ? nil : try? JSONEncoder().encode(imperial)
+        var metric: [String: Double] = [:]
+        for interval in Self.extraMetric {
+            if let time = summary.best(interval) { metric[Self.key(interval)] = time }
+        }
+        self.metricTimesData = metric.isEmpty ? nil : try? JSONEncoder().encode(metric)
         let light = RouteSimplifier.downsample(route, maxPoints: Self.maxRoutePoints)
         self.routeData = (try? JSONEncoder().encode(light)) ?? Data()
     }
@@ -98,8 +106,17 @@ final class TripRecord {
                 if let time = imperial[Self.key(interval)], time.isFinite, time > 0 { times[interval] = time }
             }
         }
+        if let metricTimesData,
+           let metric = try? JSONDecoder().decode([String: Double].self, from: metricTimesData) {
+            for interval in Self.extraMetric {
+                if let time = metric[Self.key(interval)], time.isFinite, time > 0 { times[interval] = time }
+            }
+        }
         return times
     }
+
+    /// Plages en km/h rangées dans `metricTimesData`.
+    private static let extraMetric: [SpeedInterval] = [.zeroTo150, .zeroTo200, .eightyTo120]
 
     private static func key(_ interval: SpeedInterval) -> String {
         "\(interval.from)-\(interval.to)"

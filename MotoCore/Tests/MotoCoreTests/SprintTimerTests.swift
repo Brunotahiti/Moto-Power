@@ -17,12 +17,32 @@ final class SprintTimerTests: XCTestCase {
         XCTAssertEqual(t.last50!, 6.125, accuracy: 1e-6)
         XCTAssertEqual(t.last80!, 9.875, accuracy: 1e-6)
         XCTAssertEqual(t.best50!, 6.125, accuracy: 1e-6)
-        // À 88 km/h, la mesure continue vers 100 km/h, puis s'arrête une fois ce seuil passé.
+        // À 88 km/h, la mesure continue vers 100, 150 puis 200 km/h, et s'arrête une fois ce dernier seuil passé.
         XCTAssertTrue(t.isRunning)
         t.add(timestamp: 12, speedKmh: 96)
         t.add(timestamp: 13, speedKmh: 104)
         XCTAssertEqual(t.last(.zeroTo100)!, 12.375, accuracy: 1e-6)
+        XCTAssertTrue(t.isRunning)
+        for second in 14...26 {
+            t.add(timestamp: Double(second), speedKmh: 8 * Double(second))
+        }
+        // 150 km/h à t = 18,75 ; 200 km/h à t = 25.
+        XCTAssertEqual(t.last(.zeroTo150)!, 18.625, accuracy: 1e-6)
+        XCTAssertEqual(t.last(.zeroTo200)!, 24.875, accuracy: 1e-6)
         XCTAssertFalse(t.isRunning)
+    }
+
+    func testStandingStartStopsBeforeTwoHundredWhenSpeedDrops() {
+        var t = SprintTimer()
+        t.add(timestamp: 0, speedKmh: 0)
+        launch(&t, start: 0, rate: 20, seconds: 8)
+        // 150 km/h franchi à t = 7,5 ; départ à 0,05.
+        XCTAssertEqual(t.last(.zeroTo150)!, 7.45, accuracy: 1e-6)
+        // Gaz coupés à 160 km/h : le 0–200 est abandonné.
+        t.add(timestamp: 9, speedKmh: 150)
+        XCTAssertFalse(t.isRunning)
+        t.add(timestamp: 10, speedKmh: 205)
+        XCTAssertNil(t.last(.zeroTo200))
     }
 
     func testStandingStartAlsoTimesThirtyAndEighty() {
@@ -51,6 +71,11 @@ final class SprintTimerTests: XCTestCase {
         // 50 km/h franchi à t = 2,5 ; 90 à t = 6,5 ; 100 à t = 7,5.
         XCTAssertEqual(t.last(.fiftyTo90)!, 4.0, accuracy: 1e-6)
         XCTAssertEqual(t.last(.fiftyTo100)!, 5.0, accuracy: 1e-6)
+        // La reprise 80–120, partie à t = 5,5, court encore.
+        XCTAssertTrue(t.isRolling)
+        feed(&t, start: 9, speeds: [115, 125])
+        // 120 km/h franchi à t = 9,5.
+        XCTAssertEqual(t.last(.eightyTo120)!, 4.0, accuracy: 1e-6)
         XCTAssertFalse(t.isRolling)
         // Pas de départ arrêté : rien d'autre n'est mesuré.
         XCTAssertNil(t.last(.zeroTo50))
@@ -66,9 +91,28 @@ final class SprintTimerTests: XCTestCase {
 
     func testRollingNeedsToCrossFiftyUpward() {
         var t = SprintTimer()
-        feed(&t, start: 0, speeds: [60, 70, 80, 90, 100, 110])
-        XCTAssertNil(t.last(.fiftyTo90))
+        feed(&t, start: 0, speeds: [60, 70, 75])
         XCTAssertFalse(t.isRolling)
+        feed(&t, start: 3, speeds: [85, 95, 105, 115, 125])
+        XCTAssertNil(t.last(.fiftyTo90))
+        XCTAssertNil(t.last(.fiftyTo100))
+        // 80 km/h, lui, a bien été franchi en accélérant : à t = 2,5, puis 120 à t = 6,5.
+        XCTAssertEqual(t.last(.eightyTo120)!, 4.0, accuracy: 1e-6)
+    }
+
+    func testEightyToOneTwentyNeedsToCrossEightyUpward() {
+        var t = SprintTimer()
+        feed(&t, start: 0, speeds: [90, 100, 110, 125])
+        XCTAssertNil(t.last(.eightyTo120))
+        XCTAssertFalse(t.isRolling)
+    }
+
+    func testLiftingOffCancelsEightyToOneTwenty() {
+        var t = SprintTimer()
+        feed(&t, start: 0, speeds: [75, 85, 100, 90])
+        XCTAssertFalse(t.isRolling)
+        feed(&t, start: 4, speeds: [110, 125])
+        XCTAssertNil(t.last(.eightyTo120))
     }
 
     func testLiftingOffCancelsRollingThenItRearmsBelowFifty() {
@@ -133,7 +177,11 @@ final class SprintTimerTests: XCTestCase {
     }
 
     func testIntervalLabels() {
-        XCTAssertEqual(SpeedInterval.metric.map(\.label), ["0–30", "0–50", "0–80", "0–100", "50–90", "50–100"])
+        XCTAssertEqual(SpeedInterval.metric.map(\.label), ["0–30", "0–50", "0–80", "0–100", "0–150", "0–200", "50–90", "50–100", "80–120"])
+        XCTAssertEqual(SpeedInterval.dashboard(for: .metric).map(\.label),
+                       ["0–50", "0–100", "0–150", "0–200", "50–100", "80–120"])
+        XCTAssertTrue(SpeedInterval.dashboard(for: .metric).allSatisfy(SpeedInterval.metric.contains))
+        XCTAssertEqual(SpeedInterval.dashboard(for: .imperial), SpeedInterval.imperial)
         XCTAssertEqual(SpeedInterval.imperial.map(\.fullLabel),
                        ["0–20 mph", "0–30 mph", "0–50 mph", "0–60 mph", "30–50 mph", "30–60 mph"])
         XCTAssertEqual(SpeedInterval.zeroTo100.fullLabel, "0–100 km/h")

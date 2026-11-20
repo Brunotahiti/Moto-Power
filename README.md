@@ -3,7 +3,7 @@
 Application iPhone qui affiche en direct le tableau de bord d'un trajet en
 moto, à partir des capteurs du téléphone fixé au guidon : vitesse GPS,
 vitesse maximale et moyenne, distance, altitude, durées, poussée
-d'accélération, inclinaison, temps 0–50 et 0–80 km/h.
+d'accélération, inclinaison, temps 0–100, 0–150, 0–200 et 80–120 km/h.
 
 Chaque trajet terminé est conservé dans l'historique avec son tracé ; deux
 trajets peuvent être comparés côte à côte, les records personnels sont
@@ -74,9 +74,11 @@ du dessus, vidéo d'ouverture) ont été générés avec Higgsfield.
 - **Durée de roulage** : temps passé au-dessus de 3 km/h.
 - **Accélération** : accéléromètre projeté sur l'axe de marche, corrigé par
   la dérivée de la vitesse GPS. « Forte » à partir de ±4 m/s².
-- **Temps d'accélération** : départs arrêtés 0–30, 0–50 et 0–80 km/h (le
-  chrono s'arme à l'arrêt) et reprises lancées 50–90 et 50–100 km/h (le chrono
-  part quand 50 km/h est franchi en accélérant). Une mesure s'annule si la
+- **Temps d'accélération** : départs arrêtés 0–30, 0–50, 0–80, 0–100,
+  0–150 et 0–200 km/h (le chrono s'arme à l'arrêt) et reprises lancées 50–90,
+  50–100 et 80–120 km/h (le chrono part quand 50 ou 80 km/h est franchi en
+  accélérant). Le compteur en direct en montre six : 0–50, 0–100, 0–150,
+  0–200, 50–100 et 80–120 ; les autres se lisent dans le résumé et les records. Une mesure s'annule si la
   vitesse retombe. Le GPS ne donnant qu'un point
   par seconde, les passages sont interpolés : précision d'environ 0,2 s.
 - **Inclinaison** : sous 10 km/h, direction de la gravité par rapport à la

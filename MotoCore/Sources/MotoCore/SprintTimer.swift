@@ -26,8 +26,11 @@ public struct SpeedInterval: Hashable, Sendable, Codable {
     public static let zeroTo50 = SpeedInterval(from: 0, to: 50)
     public static let zeroTo80 = SpeedInterval(from: 0, to: 80)
     public static let zeroTo100 = SpeedInterval(from: 0, to: 100)
+    public static let zeroTo150 = SpeedInterval(from: 0, to: 150)
+    public static let zeroTo200 = SpeedInterval(from: 0, to: 200)
     public static let fiftyTo90 = SpeedInterval(from: 50, to: 90)
     public static let fiftyTo100 = SpeedInterval(from: 50, to: 100)
+    public static let eightyTo120 = SpeedInterval(from: 80, to: 120)
 
     public static let zeroTo20mph = SpeedInterval(from: 0, to: 20, unit: .mph)
     public static let zeroTo30mph = SpeedInterval(from: 0, to: 30, unit: .mph)
@@ -38,7 +41,8 @@ public struct SpeedInterval: Hashable, Sendable, Codable {
 
     /// Plages en km/h, dans l'ordre d'affichage.
     public static let metric: [SpeedInterval] = [
-        .zeroTo30, .zeroTo50, .zeroTo80, .zeroTo100, .fiftyTo90, .fiftyTo100,
+        .zeroTo30, .zeroTo50, .zeroTo80, .zeroTo100, .zeroTo150, .zeroTo200,
+        .fiftyTo90, .fiftyTo100, .eightyTo120,
     ]
     /// Plages en mph, dans l'ordre d'affichage (0–60 mph : la référence anglo-saxonne).
     public static let imperial: [SpeedInterval] = [
@@ -52,7 +56,16 @@ public struct SpeedInterval: Hashable, Sendable, Codable {
         units == .metric ? metric : imperial
     }
 
-    /// Plage la plus longue en départ arrêté : 0–100 km/h ou 0–60 mph.
+    /// Plages du compteur en direct : six au plus, pour tenir sur une ligne.
+    /// En km/h, les plages moto ; les autres restent mesurées et visibles
+    /// dans le résumé, les records et les statistiques.
+    public static func dashboard(for units: UnitSystem) -> [SpeedInterval] {
+        units == .metric
+            ? [.zeroTo50, .zeroTo100, .zeroTo150, .zeroTo200, .fiftyTo100, .eightyTo120]
+            : imperial
+    }
+
+    /// Plage de référence en départ arrêté : 0–100 km/h ou 0–60 mph.
     public static func flagship(for units: UnitSystem) -> SpeedInterval {
         units == .metric ? .zeroTo100 : .zeroTo60mph
     }
@@ -95,9 +108,9 @@ public struct SprintResult: Sendable, Equatable {
     public let start: TimeInterval
 }
 
-/// Chronomètre les accélérations : départs arrêtés (0–30, 0–50, 0–80, 0–100 km/h)
-/// et reprises lancées (50–90, 50–100 km/h), et en même temps les plages en mph
-/// (0–20, 0–30, 0–50, 0–60, 30–50, 30–60 mph).
+/// Chronomètre les accélérations : départs arrêtés (0–30, 0–50, 0–80, 0–100,
+/// 0–150, 0–200 km/h) et reprises lancées (50–90, 50–100, 80–120 km/h), et en
+/// même temps les plages en mph (0–20, 0–30, 0–50, 0–60, 30–50, 30–60 mph).
 ///
 /// Le GPS ne fournit qu'un point par seconde ; les instants de départ et de
 /// passage sont interpolés linéairement entre deux points.
@@ -127,25 +140,35 @@ public struct SprintTimer: Sendable {
     private struct Rolling: Sendable {
         var start: TimeInterval
         var maxSpeed: Double
-        /// Indice du prochain seuil à franchir dans `SpeedInterval.rolling`.
+        /// Indice du prochain seuil à franchir dans les plages du groupe.
         var next: Int
+    }
+
+    /// Reprises qui partent de la même vitesse (50 km/h, 80 km/h, 30 mph…).
+    private struct RollingGroup: Sendable {
+        /// Vitesse de départ (km/h).
+        let startKmh: Double
+        /// Plages du groupe, par vitesse d'arrivée croissante.
+        let targets: [SpeedInterval]
+        var run: Rolling?
     }
 
     /// Une série de plages (km/h ou mph), avec ses propres mesures en cours.
     private struct Lane: Sendable {
         /// Départs arrêtés, par vitesse d'arrivée croissante.
         let standingTargets: [SpeedInterval]
-        /// Reprises lancées, par vitesse d'arrivée croissante ; toutes partent de `rollingStart`.
-        let rollingTargets: [SpeedInterval]
-        /// Vitesse de départ des reprises (km/h).
-        let rollingStart: Double
+        /// Reprises lancées, regroupées par vitesse de départ croissante.
+        var rollingGroups: [RollingGroup]
         var standing = Standing.idle
-        var rolling: Rolling?
 
         init(_ intervals: [SpeedInterval]) {
             standingTargets = intervals.filter { $0.from == 0 }.sorted { $0.toKmh < $1.toKmh }
-            rollingTargets = intervals.filter { $0.from != 0 }.sorted { $0.toKmh < $1.toKmh }
-            rollingStart = rollingTargets.first?.fromKmh ?? .infinity
+            let rolling = intervals.filter { $0.from != 0 }
+            let starts = Set(rolling.map(\.from)).sorted()
+            rollingGroups = starts.map { start in
+                let targets = rolling.filter { $0.from == start }.sorted { $0.toKmh < $1.toKmh }
+                return RollingGroup(startKmh: targets[0].fromKmh, targets: targets, run: nil)
+            }
         }
     }
 
@@ -180,7 +203,9 @@ public struct SprintTimer: Sendable {
     }
 
     /// Une reprise lancée est en cours de mesure.
-    public var isRolling: Bool { lanes.contains { $0.rolling != nil } }
+    public var isRolling: Bool {
+        lanes.contains { lane in lane.rollingGroups.contains { $0.run != nil } }
+    }
 
     /// Temps écoulé depuis le départ arrêté en cours.
     public func runElapsed(at now: TimeInterval) -> TimeInterval? {
@@ -194,15 +219,23 @@ public struct SprintTimer: Sendable {
     /// sinon la reprise.
     public func activeElapsed(at now: TimeInterval) -> TimeInterval? {
         if let elapsed = runElapsed(at: now) { return elapsed }
-        guard let rolling = lanes.compactMap(\.rolling).first else { return nil }
-        return max(0, now - rolling.start)
+        // Plusieurs reprises peuvent courir en même temps : on montre la plus
+        // ancienne de la première série qui en a une (km/h avant mph).
+        for lane in lanes {
+            if let start = lane.rollingGroups.compactMap({ $0.run?.start }).min() {
+                return max(0, now - start)
+            }
+        }
+        return nil
     }
 
     /// Abandonne les mesures en cours ; les temps déjà obtenus sont conservés.
     public mutating func cancelRun() {
         for index in lanes.indices {
             lanes[index].standing = .idle
-            lanes[index].rolling = nil
+            for group in lanes[index].rollingGroups.indices {
+                lanes[index].rollingGroups[group].run = nil
+            }
         }
     }
 
@@ -216,7 +249,9 @@ public struct SprintTimer: Sendable {
         previous = now
 
         for index in lanes.indices {
-            updateRolling(lane: index, from: before, to: now)
+            for group in lanes[index].rollingGroups.indices {
+                updateRolling(lane: index, group: group, from: before, to: now)
+            }
             updateStanding(lane: index, from: before, to: now)
         }
     }
@@ -294,44 +329,45 @@ public struct SprintTimer: Sendable {
 
     // MARK: Reprise lancée
 
-    private mutating func updateRolling(lane i: Int, from before: Point?, to now: Point) {
+    private mutating func updateRolling(lane i: Int, group g: Int, from before: Point?, to now: Point) {
         guard let before, now.time - before.time <= Self.maxGap else {
-            lanes[i].rolling = nil
+            lanes[i].rollingGroups[g].run = nil
             return
         }
 
-        if var run = lanes[i].rolling {
+        let startSpeed = lanes[i].rollingGroups[g].startKmh
+        if var run = lanes[i].rollingGroups[g].run {
             guard now.time - run.start <= Self.maxDuration, now.speed >= run.maxSpeed - Self.cancelDrop else {
-                lanes[i].rolling = nil
+                lanes[i].rollingGroups[g].run = nil
                 return
             }
             run.maxSpeed = max(run.maxSpeed, now.speed)
-            lanes[i].rolling = run
-            checkRollingTargets(lane: i, from: before, to: now)
-        } else if before.speed < lanes[i].rollingStart, now.speed >= lanes[i].rollingStart {
-            // La reprise part de l'instant où sa vitesse de départ (50 km/h, 30 mph) est franchie en accélérant.
-            let start = Self.crossing(of: lanes[i].rollingStart, from: before, to: now)
-            lanes[i].rolling = Rolling(start: start, maxSpeed: now.speed, next: 0)
-            checkRollingTargets(lane: i, from: before, to: now)
+            lanes[i].rollingGroups[g].run = run
+            checkRollingTargets(lane: i, group: g, from: before, to: now)
+        } else if before.speed < startSpeed, now.speed >= startSpeed {
+            // La reprise part de l'instant où sa vitesse de départ (50 ou 80 km/h, 30 mph) est franchie en accélérant.
+            let start = Self.crossing(of: startSpeed, from: before, to: now)
+            lanes[i].rollingGroups[g].run = Rolling(start: start, maxSpeed: now.speed, next: 0)
+            checkRollingTargets(lane: i, group: g, from: before, to: now)
         }
     }
 
-    private mutating func checkRollingTargets(lane i: Int, from a: Point, to b: Point) {
-        guard var run = lanes[i].rolling else { return }
-        let targets = lanes[i].rollingTargets
+    private mutating func checkRollingTargets(lane i: Int, group g: Int, from a: Point, to b: Point) {
+        guard var run = lanes[i].rollingGroups[g].run else { return }
+        let targets = lanes[i].rollingGroups[g].targets
         while run.next < targets.count {
             let interval = targets[run.next]
             let target = interval.toKmh
             guard a.speed < target, b.speed >= target else { break }
             let time = Self.crossing(of: target, from: a, to: b) - run.start
             guard time >= interval.minPlausibleTime else {
-                lanes[i].rolling = nil
+                lanes[i].rollingGroups[g].run = nil
                 return
             }
             record(interval, time, start: run.start)
             run.next += 1
         }
-        lanes[i].rolling = run.next < targets.count ? run : nil
+        lanes[i].rollingGroups[g].run = run.next < targets.count ? run : nil
     }
 
     /// Instant où la vitesse atteint `target`, par interpolation linéaire.

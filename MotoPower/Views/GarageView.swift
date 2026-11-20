@@ -18,7 +18,7 @@ struct GarageView: View {
                 if motos.isEmpty {
                     Section {
                         VStack(alignment: .leading, spacing: 10) {
-                            Label(L("Ajoutez votre moto"), systemImage: "moto")
+                            Label(L("Ajoutez votre moto"), systemImage: "motorcycle")
                                 .font(.headline)
                             Text(L("Le kilométrage avance tout seul avec vos trajets. Moto Power vous prévient avant la vidange, la révision ou les pneus."))
                                 .font(.subheadline)
@@ -64,7 +64,7 @@ struct GarageView: View {
         let due: Int = tasks.filter { $0.motoID == moto.uid && $0.status(currentKm: km).state != .ok }.count
         let isCurrent: Bool = currentID == moto.uid
         return HStack(spacing: 12) {
-            Image(systemName: "moto")
+            Image(systemName: "motorcycle")
                 .font(.title2)
                 .foregroundStyle(isCurrent ? Theme.cyan : Theme.textSecondary)
                 .frame(width: 36)
@@ -155,7 +155,7 @@ struct MotoDetailView: View {
                     Label(L("Utilisé pour les prochains trajets"), systemImage: "checkmark.circle.fill")
                         .foregroundStyle(Theme.cyan)
                 } else {
-                    Button(L("Utiliser cette moto"), systemImage: "moto") {
+                    Button(L("Utiliser cette moto"), systemImage: "motorcycle") {
                         settings.setCurrentMoto(moto.uid)
                     }
                 }

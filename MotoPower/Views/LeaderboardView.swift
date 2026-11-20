@@ -47,7 +47,7 @@ struct LeaderboardView: View {
                 if modelKey == nil {
                     Section {
                         Label(L("Indiquez la marque et le modèle de votre moto dans le Garage pour vous mesurer aux pilotes du même modèle."),
-                              systemImage: "moto")
+                              systemImage: "motorcycle")
                             .font(.footnote)
                     }
                 }
