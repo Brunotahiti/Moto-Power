@@ -1,0 +1,588 @@
+import AudioToolbox
+import Foundation
+import Observation
+import MotoCore
+import UIKit
+
+/// Enveloppe observable de `TripSession` : relie les capteurs à la session
+/// et publie des valeurs prêtes à afficher.
+@MainActor
+@Observable
+final class TripViewModel {
+    private(set) var state = TripState.idle
+    private(set) var isDemo: Bool
+    private(set) var locationDenied = false
+    private(set) var gpsWeak = false
+    /// Précision du GPS, par exemple « ± 3 m », ou `nil` sans signal récent.
+    private(set) var gpsAccuracyText: String?
+    /// Qualité du signal GPS, de 0 à 4 barres.
+    private(set) var gpsSignalBars = 0
+
+    private(set) var speedKmh: Double?
+    /// Vitesse dans l'unité affichée, pour le compteur.
+    private(set) var speedValue: Double?
+    private(set) var speedUnit = "km/h"
+    private(set) var speedometerMax: Double = 240
+    private(set) var speedometerStep: Double = 20
+    /// Le seuil d'alerte de vitesse est dépassé.
+    private(set) var speedAlertActive = false
+    private(set) var speedText = "--"
+    private(set) var maxSpeedText = "--"
+    private(set) var averageSpeedText = "--"
+    private(set) var distanceText = "--"
+    private(set) var altitudeText = "--"
+    private(set) var movingDurationText = "00:00:00"
+    private(set) var totalDurationText = "00:00:00"
+
+    private(set) var accelerationValue: Double = 0
+    private(set) var accelerationText = "0"
+    private(set) var accelerationLevel = AccelerationLevel.stable
+    private(set) var accelerationHistory: [Double] = []
+    private(set) var peakText = "--"
+
+    /// Meilleurs temps du trajet, ou `--`, dans l'ordre de `SpeedInterval.displayed`.
+    private(set) var sprintTexts: [String] = SpeedInterval.displayed.map { _ in "--" }
+    /// Une mesure est en cours : départ arrêté ou reprise lancée.
+    private(set) var sprintRunning = false
+    private(set) var sprintElapsedText = ""
+    /// Records tous trajets confondus, ou `--`, dans l'ordre de `SpeedInterval.displayed`.
+    private(set) var recordTexts: [String] = SpeedInterval.displayed.map { _ in "--" }
+    /// Par plage, de 0 à 1 : à quel point le temps du trajet approche le record.
+    private(set) var sprintProgress: [Double] = SpeedInterval.displayed.map { _ in 0 }
+    /// Indices, dans `SpeedInterval.displayed`, des records battus pendant ce trajet.
+    private(set) var beatenRecords: Set<Int> = []
+    /// Annonce « Record battu » à afficher quelques secondes, ou `nil`.
+    private(set) var recordBanner: RecordBanner?
+
+    private(set) var leanDegrees: Double = 0
+    private(set) var leanText = "0°"
+    private(set) var leanSide = LeanSide.upright
+
+    private(set) var route: [Coordinate] = []
+    /// Poussée à chaque point du tracé, alignée sur `route`.
+    private(set) var thrustTrack: [Double] = []
+    /// Vitesse, poussée et inclinaison le long du tracé, pour revoir le trajet.
+    private(set) var replayTrack: [ReplayPoint] = []
+    /// Meilleures accélérations et pic de poussée, à placer sur la carte.
+    private(set) var highlights: [TripHighlight] = []
+    private(set) var summary: TripSummary?
+    /// Début du trajet en cours ou du dernier trajet terminé.
+    private(set) var startDate: Date?
+
+    // MARK: Course contre le ghost
+    /// Nom du trajet affronté (« Ghost du 12 nov. »), `nil` sans course.
+    private(set) var ghostTitle: String?
+    private(set) var ghostStatus: GhostRace.Status?
+    /// Parcours du ghost, pour la carte.
+    private(set) var ghostRoute: [Coordinate] = []
+    @ObservationIgnored private var ghostTemplate: GhostRace?
+    @ObservationIgnored private var ghostRace: GhostRace?
+    @ObservationIgnored private var ghostLastAnnounce: TimeInterval = 0
+    @ObservationIgnored private var ghostWasAhead: Bool?
+    /// Temps du trajet au départ de la course, pour la revoir ensuite.
+    @ObservationIgnored private var ghostRaceStart: TimeInterval?
+
+    @ObservationIgnored private var session = TripSession()
+    @ObservationIgnored private let location: LocationProviding
+    @ObservationIgnored private let motion: MotionProviding
+    @ObservationIgnored private var refreshTimer: Timer?
+    @ObservationIgnored private var startRequested = false
+    @ObservationIgnored private let settings = AppSettings.shared
+    @ObservationIgnored private var speedAlert = SpeedAlert()
+    @ObservationIgnored private var recordBook = RecordBook()
+    /// Nombre de mesures de `session.sprint.results` déjà comparées aux records.
+    @ObservationIgnored private var checkedResults = 0
+    @ObservationIgnored private var bannerHideTime: TimeInterval = 0
+    @ObservationIgnored private var bannerCount = 0
+    @ObservationIgnored private let liveActivity = LiveActivityController()
+    /// Surveillance des chutes pendant l'enregistrement.
+    @ObservationIgnored private var crashDetector = CrashDetector()
+    /// Chute probable en cours d'alerte ; `nil` sinon.
+    private(set) var crashAlert: CrashAlert?
+
+    /// Capteurs réels s'ils existent, sinon trajet de démonstration (simulateur).
+    convenience init() {
+        let motion = MotionService()
+        if motion.isAvailable {
+            self.init(location: LocationService(), motion: motion, isDemo: false)
+        } else {
+            let demo = DemoFeed()
+            self.init(location: demo, motion: demo, isDemo: true)
+        }
+    }
+
+    init(location: LocationProviding, motion: MotionProviding, isDemo: Bool) {
+        self.location = location
+        self.motion = motion
+        self.isDemo = isDemo
+
+        // Les échantillons modifient la session à leur cadence ; l'écran n'est
+        // rafraîchi qu'à 10 Hz par `refresh()`.
+        location.onLocation = { [weak self] sample in
+            guard let self else { return }
+            self.session.handle(sample)
+            if self.state == .recording, sample.speed >= 0 {
+                self.crashDetector.addSpeed(time: self.now, kmh: sample.speed * 3.6)
+            }
+            if self.state == .recording, sample.horizontalAccuracy >= 0 {
+                self.updateGhost(Coordinate(latitude: sample.latitude, longitude: sample.longitude))
+            }
+        }
+        motion.onMotion = { [weak self] sample in
+            guard let self else { return }
+            self.session.handle(sample)
+            self.watchForCrash(sample)
+        }
+        location.onAuthorizationChange = { [weak self] authorization in
+            self?.authorizationChanged(authorization)
+        }
+        liveActivity.endOrphans()
+        watchLifecycle()
+        // Met les textes au bon format (unités, séparateur décimal) dès l'ouverture.
+        refresh()
+    }
+
+    private var now: TimeInterval { Date().timeIntervalSinceReferenceDate }
+
+    // MARK: - Actions
+
+    func start() {
+        guard state == .idle else { return }
+        switch location.authorization {
+        case .authorized:
+            begin()
+        case .notDetermined:
+            startRequested = true
+            location.requestAuthorization()
+        case .denied:
+            locationDenied = true
+        }
+    }
+
+    func togglePause() {
+        switch state {
+        case .recording:
+            session.pause(at: now)
+        case .paused:
+            session.resume(at: now)
+        case .idle, .finished:
+            return
+        }
+        refresh()
+    }
+
+    func finish() {
+        guard state == .recording || state == .paused else { return }
+        let time = now
+        session.finish(at: time)
+        location.stop()
+        motion.stop()
+        stopRefreshing()
+        // Le rafraîchissement s'arrête : l'annonce ne se refermerait plus toute seule.
+        recordBanner = nil
+        liveActivity.end()
+        UIApplication.shared.isIdleTimerDisabled = false
+        // Le résumé est prêt avant que `state` ne passe à `.finished` : la vue l'enregistre à ce moment-là.
+        summary = session.summary(at: time)
+        refresh()
+        // Les proches voient « arrivé » sur la page de suivi.
+        LiveShareService.shared.tripFinished()
+    }
+
+    func reset() {
+        guard state == .finished else { return }
+        // Une course contre le ghost ne vaut que pour un trajet.
+        setGhost(nil, title: nil)
+        session.reset()
+        summary = nil
+        refresh()
+    }
+
+    /// Prépare une course contre un trajet passé ; `nil` l'annule.
+    func setGhost(_ race: GhostRace?, title: String?) {
+        ghostTemplate = race
+        ghostTitle = race == nil ? nil : title
+        ghostRoute = race?.route ?? []
+        ghostStatus = nil
+        ghostWasAhead = nil
+        ghostRaceStart = nil
+        ghostRace = (state == .recording || state == .paused) ? race : nil
+    }
+
+    /// Position du ghost à cette heure (horloge `Date.timeIntervalSinceReferenceDate`).
+    func ghostLivePosition(at time: TimeInterval) -> (coordinate: Coordinate, heading: Double, meters: Double)? {
+        guard ghostStatus?.phase == .racing else { return nil }
+        return ghostRace?.ghostPosition(at: time)
+    }
+
+    /// La course de ce trajet, à enregistrer avec lui ; `nil` si elle n'a pas commencé.
+    func ghostResult() -> GhostRaceResult? {
+        guard let ghostRace, let ghostStatus, ghostStatus.phase != .waitingForStart,
+              let ghostRaceStart, let ghostTitle else { return nil }
+        return GhostRaceResult(title: ghostTitle, race: ghostRace, status: ghostStatus, raceStart: ghostRaceStart)
+    }
+
+    private func updateGhost(_ coordinate: Coordinate) {
+        guard var race = ghostRace else { return }
+        let previous: GhostRace.Phase? = ghostStatus?.phase
+        let status: GhostRace.Status = race.update(time: now, coordinate: coordinate)
+        ghostRace = race
+        ghostStatus = status
+        if previous != .racing, status.phase == .racing, ghostRaceStart == nil {
+            ghostRaceStart = session.replayTrack.last?.time
+        }
+        guard settings.voiceEnabled else { return }
+        switch status.phase {
+        case .waitingForStart:
+            break
+        case .racing:
+            if previous != .racing {
+                Announcer.shared.say(L("Top départ ! Le ghost est parti."))
+                ghostLastAnnounce = now
+                return
+            }
+            guard let gap = status.gapSeconds, !status.offRoute else { return }
+            let ahead: Bool = gap >= 0
+            // Changement de leader, ou point toutes les 45 secondes.
+            if let wasAhead = ghostWasAhead, wasAhead != ahead, abs(gap) >= 0.5 {
+                Announcer.shared.say(ahead ? L("Vous passez devant le ghost !") : L("Le ghost vous dépasse !"))
+                ghostLastAnnounce = now
+            } else if now - ghostLastAnnounce >= 45 {
+                Announcer.shared.say(Self.ghostGapSentence(gap))
+                ghostLastAnnounce = now
+            }
+            if abs(gap) >= 0.5 { ghostWasAhead = ahead }
+        case .finished:
+            if previous != .finished, let gap = status.gapSeconds {
+                let seconds: String = Formatters.decimal(abs(gap), digits: 1)
+                Announcer.shared.say(gap >= 0
+                    ? L("Race win ! Ghost battu de \(seconds) secondes !")
+                    : L("Race lost. Le ghost gagne de \(seconds) secondes."))
+            }
+        }
+    }
+
+    static func ghostGapSentence(_ gap: Double) -> String {
+        let seconds: String = Formatters.decimal(abs(gap), digits: 0)
+        return gap >= 0 ? L("\(seconds) secondes d'avance sur le ghost.") : L("\(seconds) secondes de retard sur le ghost.")
+    }
+
+    /// Records issus de l'historique des trajets. À rappeler quand l'historique change.
+    /// État publié sur la page de suivi en direct (aussi juste après l'arrivée).
+    func liveSnapshot() -> LiveShareService.Snapshot? {
+        guard let last = route.last, !isDemo else { return nil }
+        var heading: Double = 0
+        for previous in route.dropLast().reversed().prefix(20)
+        where TripStatistics.haversine(previous, last) > 3 {
+            heading = TripReplay.bearing(from: previous, to: last)
+            break
+        }
+        let position = RiderPosition(
+            riderID: "", name: settings.riderName, coordinate: last, speedKmh: state == .recording ? (speedKmh ?? 0) : 0,
+            heading: heading, leanDegrees: leanDegrees, acceleration: accelerationValue, updatedAt: Date())
+        return LiveShareService.Snapshot(
+            position: position, route: route, state: state == .paused ? .paused : .riding)
+    }
+
+    /// Ma position pour la balade de groupe : seulement pendant un trajet.
+    func groupPosition(name: String) -> RiderPosition? {
+        guard state == .recording || state == .paused, let last = route.last else { return nil }
+        // Cap : depuis le dernier point assez éloigné, pour ne pas tourner sur place à l'arrêt.
+        var heading: Double = 0
+        for previous in route.dropLast().reversed().prefix(20)
+        where TripStatistics.haversine(previous, last) > 3 {
+            heading = TripReplay.bearing(from: previous, to: last)
+            break
+        }
+        return RiderPosition(
+            riderID: GroupRideService.shared.myID, name: name, coordinate: last,
+            speedKmh: speedKmh ?? 0, heading: heading, leanDegrees: leanDegrees,
+            acceleration: accelerationValue, updatedAt: Date())
+    }
+
+    func setHistoryRecords(_ records: [SpeedInterval: TimeInterval]) {
+        var book = RecordBook(records: records)
+        // Le trajet en cours n'est pas encore dans l'historique.
+        book.merge(session.sprint.bestTimes)
+        recordBook = book
+        publishRecords()
+    }
+
+    /// À appeler quand un réglage d'affichage change : les textes sont recalculés.
+    func settingsChanged() {
+        beatenRecords = []
+        publishRecords()
+        refresh()
+    }
+
+    func recalibrate() {
+        session.recalibrate()
+        crashDetector = CrashDetector()
+    }
+
+    // MARK: - Chute
+
+    private func watchForCrash(_ sample: MotionSample) {
+        guard state == .recording, settings.crashDetectionEnabled, crashAlert == nil, !isDemo else { return }
+        guard crashDetector.addMotion(
+            time: now, gravity: sample.gravity, userAcceleration: sample.userAcceleration)
+        else { return }
+        let alert = CrashAlert(date: Date(), coordinate: route.last)
+        if settings.crashSilentMode {
+            // Mode réglage : on note, une petite vibration, pas d'alarme.
+            CrashLog.shared.add(id: alert.id, date: alert.date, trigger: crashDetector.lastTrigger, outcome: .silent)
+            UINotificationFeedbackGenerator().notificationOccurred(.warning)
+            return
+        }
+        CrashLog.shared.add(id: alert.id, date: alert.date, trigger: crashDetector.lastTrigger, outcome: .pending)
+        crashAlert = alert
+        LiveShareService.shared.crashAlert()
+        CrashAlarm.shared.start()
+    }
+
+    /// Le pilote va bien : l'alerte est annulée.
+    func dismissCrashAlert() {
+        crashAlert = nil
+        CrashAlarm.shared.stop()
+    }
+
+    // MARK: - Interne
+
+    private func authorizationChanged(_ authorization: LocationAuthorization) {
+        locationDenied = authorization == .denied
+        guard startRequested, authorization != .notDetermined else { return }
+        startRequested = false
+        if authorization == .authorized {
+            begin()
+        }
+    }
+
+    private func begin() {
+        guard state == .idle else { return }
+        startDate = Date()
+        checkedResults = 0
+        beatenRecords = []
+        recordBanner = nil
+        session.start(at: now)
+        crashDetector = CrashDetector()
+        crashAlert = nil
+        ghostRace = ghostTemplate
+        ghostStatus = nil
+        ghostWasAhead = nil
+        ghostRaceStart = nil
+        ghostLastAnnounce = now
+        location.start()
+        motion.start()
+        UIApplication.shared.isIdleTimerDisabled = true
+        startRefreshing()
+        refresh()
+        liveActivity.start(startDate: startDate ?? Date(), state: liveActivityState)
+        if !isDemo { LiveShareService.shared.tripStarted() }
+    }
+
+    private var liveActivityState: LiveActivityController.State {
+        LiveActivityController.State(
+            speedText: speedText,
+            speedUnit: speedUnit,
+            distanceText: distanceText,
+            durationText: totalDurationText,
+            isPaused: state == .paused,
+            // Arrondis à la précision affichée, pour ne pas envoyer de mise à jour sans effet visible.
+            acceleration: (accelerationValue * 10).rounded() / 10,
+            leanDegrees: leanDegrees.rounded())
+    }
+
+    /// Compare les nouvelles mesures aux records et annonce ceux qui tombent.
+    private func checkRecords(_ results: [SprintResult], at time: TimeInterval) {
+        if recordBanner != nil, time >= bannerHideTime {
+            recordBanner = nil
+        }
+        guard results.count > checkedResults else { return }
+        for result in results[checkedResults...] {
+            let outcome = recordBook.submit(result.interval, time: result.time)
+            announce(result, outcome: outcome)
+            guard case .beaten(let previous) = outcome else { continue }
+            // Les deux séries sont mesurées ; on n'annonce que celle de l'unité affichée.
+            guard SpeedInterval.displayed.contains(result.interval) else { continue }
+            if let index = SpeedInterval.displayed.firstIndex(of: result.interval) {
+                beatenRecords.insert(index)
+            }
+            bannerCount += 1
+            recordBanner = RecordBanner(
+                id: bannerCount,
+                title: result.interval.fullLabel,
+                time: Self.sprintText(result.time),
+                previous: Self.sprintText(previous))
+            bannerHideTime = time + RecordBanner.duration
+            UINotificationFeedbackGenerator().notificationOccurred(.success)
+        }
+        checkedResults = results.count
+        publishRecords()
+    }
+
+    /// Annonce vocale : chaque record battu, et le chrono phare (0–100 km/h ou 0–60 mph).
+    private func announce(_ result: SprintResult, outcome: RecordBook.Outcome) {
+        guard SpeedInterval.displayed.contains(result.interval) else { return }
+        let seconds: String = Formatters.decimal(result.time, digits: 1)
+        let interval: String = Self.spokenInterval(result.interval)
+        switch outcome {
+        case .beaten:
+            Announcer.shared.say(L("Nouveau record ! \(interval) en \(seconds) secondes."))
+            ReviewPrompt.recordBeaten()
+        case .first, .notARecord:
+            if result.interval == SpeedInterval.flagship(for: settings.units) {
+                Announcer.shared.say(L("\(interval) en \(seconds) secondes."))
+            }
+        }
+    }
+
+    /// « 0 à 60 miles à l'heure », « zero to 60 miles per hour ».
+    private static func spokenInterval(_ interval: SpeedInterval) -> String {
+        let unit: String = interval.unit == .mph ? L("miles à l'heure") : L("kilomètres-heure")
+        return L("\(String(interval.from)) à \(String(interval.to)) \(unit)")
+    }
+
+    private func publishRecords() {
+        recordTexts = SpeedInterval.displayed.map { Self.sprintText(recordBook.records[$0]) }
+    }
+
+    private static func sprintText(_ time: TimeInterval?) -> String {
+        guard let time else { return "--" }
+        return Formatters.decimal(time, digits: 1) + " s"
+    }
+
+    /// Écran visible : 10 images par seconde. Écran verrouillé ou app en
+    /// arrière-plan : une fois par seconde suffit (Live Activity, annonces).
+    @ObservationIgnored private var inBackground = false
+    @ObservationIgnored private var lifecycleObservers: [NSObjectProtocol] = []
+
+    private func watchLifecycle() {
+        let center = NotificationCenter.default
+        lifecycleObservers = [
+            center.addObserver(forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.setBackground(true) }
+            },
+            center.addObserver(forName: UIApplication.willEnterForegroundNotification, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.setBackground(false) }
+            },
+        ]
+    }
+
+    private func setBackground(_ value: Bool) {
+        guard inBackground != value else { return }
+        inBackground = value
+        if refreshTimer != nil { startRefreshing() }
+    }
+
+    private func startRefreshing() {
+        stopRefreshing()
+        let timer = Timer(timeInterval: inBackground ? 1 : 0.1, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.refresh()
+            }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        refreshTimer = timer
+    }
+
+    private func stopRefreshing() {
+        refreshTimer?.invalidate()
+        refreshTimer = nil
+    }
+
+    private func refresh() {
+        let time = now
+        let statistics = session.statistics
+        let acceleration = session.acceleration
+        let lean = session.lean
+
+        state = session.state
+
+        let units: UnitSystem = settings.units
+        speedUnit = units.speedUnit
+        speedometerMax = units.speedometerMax
+        speedometerStep = units.speedometerLabelStep
+
+        speedKmh = statistics.currentSpeedKmh(at: time)
+        speedValue = speedKmh.map { units.speed(fromKmh: $0) }
+        speedText = speedValue.map { Formatters.decimal($0, digits: 0) } ?? "--"
+
+        let alertFired: Bool = speedAlert.update(
+            speedKmh: speedKmh,
+            thresholdKmh: settings.speedAlertKmh,
+            enabled: settings.speedAlertEnabled && state == .recording)
+        speedAlertActive = speedAlert.isOver
+        if alertFired {
+            // Vibration longue, plus perceptible au guidon qu'un simple retour haptique.
+            AudioServicesPlaySystemSound(kSystemSoundID_Vibrate)
+            Announcer.shared.say(L("Alerte vitesse : \(speedText) \(units.speedUnit)."))
+        }
+        gpsWeak = state == .recording && speedKmh == nil
+        let accuracy: Double? = statistics.horizontalAccuracy(at: time)
+        gpsSignalBars = TripStatistics.signalBars(accuracy: accuracy)
+        gpsAccuracyText = accuracy.map {
+            "± " + Formatters.decimal(units.altitude(fromMeters: $0), digits: 0) + " " + units.altitudeUnit
+        }
+
+        let hasTrip = state != .idle
+        maxSpeedText = hasTrip ? Formatters.decimal(units.speed(fromKmh: statistics.maxSpeedKmh), digits: 0) : "--"
+        averageSpeedText = hasTrip
+            ? Formatters.decimal(units.speed(fromKmh: statistics.averageSpeedKmh), digits: 0) : "--"
+        distanceText = Formatters.decimal(units.distance(fromMeters: statistics.distanceMeters), digits: 1)
+            + " " + units.distanceUnit
+        let altitude: String = statistics.altitudeMeters
+            .map { Formatters.decimal(units.altitude(fromMeters: $0), digits: 0) } ?? "--"
+        altitudeText = altitude + " " + units.altitudeUnit
+        movingDurationText = Formatters.duration(statistics.movingDuration)
+        totalDurationText = Formatters.duration(statistics.totalDuration(at: time))
+
+        accelerationValue = acceleration.current
+        accelerationText = Formatters.signed(acceleration.current, digits: 1)
+        accelerationLevel = acceleration.level
+        accelerationHistory = acceleration.history
+        peakText = Formatters.signed(acceleration.peak, digits: 1) + " m/s²"
+
+        let sprint = session.sprint
+        checkRecords(sprint.results, at: time)
+        sprintTexts = SpeedInterval.displayed.map { Self.sprintText(sprint.best($0)) }
+        sprintProgress = SpeedInterval.displayed.map { interval in
+            // Un temps plus court est meilleur : record ÷ temps du trajet, plafonné à 1.
+            guard let best = sprint.best(interval), best > 0, let record = recordBook.records[interval] else { return 0 }
+            return min(1, record / best)
+        }
+        sprintRunning = sprint.isRunning || sprint.isRolling
+        sprintElapsedText = sprint.activeElapsed(at: time).map { Formatters.decimal($0, digits: 1) } ?? ""
+
+        leanDegrees = lean.angleDegrees
+        leanSide = lean.side
+        leanText = Formatters.decimal(abs(lean.angleDegrees), digits: 0) + "°"
+
+        if route.count != statistics.route.count {
+            route = statistics.route
+            thrustTrack = session.thrustTrack
+            replayTrack = session.replayTrack
+        }
+        let newHighlights: [TripHighlight] = session.highlights
+        if newHighlights != highlights {
+            highlights = newHighlights
+        }
+
+        if state == .recording || state == .paused {
+            liveActivity.update(liveActivityState)
+        }
+    }
+}
+
+/// Annonce d'un record battu.
+struct RecordBanner: Identifiable, Equatable {
+    /// Durée d'affichage, en secondes.
+    static let duration: TimeInterval = 5
+
+    let id: Int
+    /// Plage concernée, par exemple « 0–50 km/h ».
+    let title: String
+    /// Nouveau record, par exemple « 4,2 s ».
+    let time: String
+    /// Ancien record.
+    let previous: String
+}
