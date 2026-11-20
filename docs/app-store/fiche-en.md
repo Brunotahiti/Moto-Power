@@ -1,82 +1,103 @@
-# App Store listing — English
+# Moto Power App Store listing — version 1.0 (English, primary language)
 
-Texts to paste into App Store Connect after adding the **English** language
-to the app page. Lengths respect Apple's limits (subtitle 30, promotional
-text 170, keywords 100, description 4,000 characters).
+Paste into App Store Connect, language **English (U.S.)**. Lengths respect
+Apple's limits (name 30, subtitle 30, promotional text 170, keywords 100,
+description 4,000 characters). The French version is in `fiche.md`.
 
 ## Name
 
 Moto Power
 
-## Subtitle (27 characters)
+If the name is taken on the Store: "Moto Power – GPS Speedometer".
 
-Motorcycle speed & performance
+## Subtitle
 
-## Promotional text (143 characters)
+Speedo, 0-60 & lean angle
 
-Neon dashboard, live speed, thrust and lean. Beat your records, compare your motorcycle mods in percent and challenge your friends with a QR code!
+## Promotional text
 
-## Keywords (95 characters)
+Neon speedometer, lean angle and 0–60, 0–100 and 0–120 mph times. Ride with up to 5 on one live map, replay every trip from above and beat your records!
 
-motorcycle,motorbike,speedometer,speed,GPS,acceleration,performance,statistics,record,timer,sportbike
+## Keywords
+
+motorcycle,motorbike,speedometer,GPS,acceleration,timer,tracker,group ride,sportbike,biker,mph,rider
 
 ## Description
 
 Moto Power turns your iPhone into a performance dashboard for motorcycles. Mount the phone on the handlebar, tap "Start trip" and follow everything live.
 
-Modifying your motorcycle? Exhaust, mapping, tyres, gearing: Moto Power compares your performance between two modifications and shows what each one gained or lost you, in percent.
+LIVE DASHBOARD
+• Neon GPS speedometer, up to 180 mph (240 km/h), whose color shifts from cyan to red
+• Your motorcycle seen from behind on a road that scrolls at your speed: it leans with you, the rider tucks in as speed rises and the brake light comes on when you brake
+• Lean angle left and right, up to 60°
+• Acceleration and braking thrust in m/s², with a graph of the last 30 seconds
+• Top and average speed, distance, altitude, riding time, GPS signal
 
-LIVE
-• Neon GPS speedometer whose color shifts from cyan to red as your speed rises
-• Animated motorcycle that leans into corners, rears up when you accelerate and dives when you brake
-• Acceleration and braking thrust in m/s², intensity gauge and a graph of the last 30 seconds
-• Lean angle left and right, computed from the gyroscope and your speed
-• Top and average speed, distance, altitude, moving time
-• GPS accuracy and signal strength
+ACCELERATION TIMES
+• Standing starts timed automatically: 0–30, 0–60, 0–100 and 0–120 mph (or 0–50, 0–100, 0–150 and 0–200 km/h)
+• Roll-ons: 30–60 and 50–75 mph (or 50–100 and 80–120 km/h)
+• "New record" appears the moment you do better
+• Records screen with their progression, trophies in the trip summary
+• Acceleration map: see where you set your best times
+• Segments: pick a stretch of road and it is timed every time you ride it
 
-PERFORMANCE
-• Standing-start and roll-on acceleration times measured automatically
-• Personal records: "New record" appears the moment you do better
-• Records screen with the date of each record and its progression over time
-• Trophies in the trip summary for every record you just broke
-• Acceleration map: see on your route where you made your best accelerations
+RIDE TOGETHER
+• Group rides: one rider shows a QR code, up to 4 friends scan it, and everyone appears on the same map, each with their own color and speed
+• Group rides are saved: replay them with every rider in sync
+• Send a trip to a friend and race their ghost on the map
+• Leaderboards between riders, all motorcycles or the same model as yours (publishing is optional)
 
-STATISTICS
-• Full statistics page: record and average for every acceleration, average thrust, top speed, totals
-• Compare two modifications: name each setup of your motorcycle ("Stock", "Sport exhaust"…) and compare any two, figure by figure, with the difference in percent (+10%, −5%…) in green or red
-• Compare two trips side by side, with the best figure on each line highlighted
+REPLAY AND SHARE
+• Relive any trip from above: the motorcycle follows your route at real speed, leans and brakes
+• Create a video of your trip and share it
+• Summary image, GPX export, performance card by QR code
 
-CHALLENGE YOUR FRIENDS
-• Share your performance card by QR code or link, no account needed
-• Compare your times and top speed with another rider, figure by figure
+STATS AND MODS
+• Records and averages for every time, top speed, totals
+• Exhaust, mapping, tyres, gearing: name each setup and compare any two, figure by figure, with the difference in percent
+• Compare two trips side by side
+• Badges and rewards as the miles add up
+
+SAFETY
+• Crash detection: the iPhone rings, then prepares a text with your location for your emergency contacts
+• Live tracking: your loved ones follow your trip on a web page, without installing the app
+• Speed alert and voice announcements
+
+GARAGE
+• Your motorcycles, their mileage and fill-ups
+• Maintenance reminders: oil change, service, tyres, chain kit, brake pads
 
 ALWAYS VISIBLE
-• Live Activity on the Lock Screen and in the Dynamic Island, with thrust and lean angle
-• Landscape dashboard with all your stats around the speedometer
-• Background recording with the screen locked
-
-HISTORY AND SHARING
-• Every trip is saved with its route on the map and all its figures
-• Share an image of your summary or export the route as a GPX file
+• Live Activity on the Lock Screen and in the Dynamic Island
+• Landscape dashboard, Home Screen widget
+• Start with Siri, a shortcut or when your headset connects
+• Keeps recording with the screen locked
 
 SETTINGS
-• Kilometres or miles (mph, including 0–60 mph times)
-• Speed alert: the speedometer turns red and the phone vibrates above the limit you choose
+• English or French, miles or kilometres
 
-YOUR DATA STAYS ON YOUR IPHONE
-No account, no ads, no data collection: everything is measured and stored on the device.
+YOUR DATA
+No account, no ads, no analytics. Your trips stay on your iPhone. Your location is shared only during a group ride or if you turn on live tracking; your times are published only if you turn on leaderboards.
 
 GOOD TO KNOW
 • Readings come from the phone's GPS and sensors. They are indicative and do not replace the vehicle's speedometer.
-• Acceleration times follow your units: 0–100 km/h and 50–90 km/h, or 0–60 mph and 30–50 mph in miles.
-• To compare two setups, do several trips on the same route in similar conditions.
 • The phone must be firmly mounted on the handlebar. Never operate the app while riding.
-• Acceleration timing is only for places where it is legal and safe.
-• Continuous use of GPS in the background can reduce battery life.
+• Only time your accelerations where it is legal and safe, such as on a track. Obey speed limits.
+• Crash detection is an aid: it does not replace emergency services and may not trigger.
+• Group rides, leaderboards and live tracking require iCloud and a data connection.
+• Continuous GPS use can reduce battery life.
 
-## Support and privacy URLs
+## What's New in This Version
 
-The support and privacy pages are currently in French only:
+First release of Moto Power.
 
-- Support: https://brunotahiti.github.io/Moto-Power/
-- Privacy policy: https://brunotahiti.github.io/Moto-Power/confidentialite.html
+## Support URL
+
+https://brunotahiti.github.io/Moto-Power/en/
+
+## Privacy policy URL
+
+https://brunotahiti.github.io/Moto-Power/en/privacy.html
+
+Category, age rating, price, privacy questionnaire and screenshots: see
+`fiche.md`.
