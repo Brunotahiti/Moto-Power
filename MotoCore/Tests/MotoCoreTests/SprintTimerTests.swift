@@ -181,9 +181,12 @@ final class SprintTimerTests: XCTestCase {
         XCTAssertEqual(SpeedInterval.dashboard(for: .metric).map(\.label),
                        ["0–50", "0–100", "0–150", "0–200", "50–100", "80–120"])
         XCTAssertTrue(SpeedInterval.dashboard(for: .metric).allSatisfy(SpeedInterval.metric.contains))
-        XCTAssertEqual(SpeedInterval.dashboard(for: .imperial), SpeedInterval.imperial)
+        XCTAssertEqual(SpeedInterval.dashboard(for: .imperial).map(\.label),
+                       ["0–30", "0–60", "0–100", "0–120", "30–60", "50–75"])
+        XCTAssertTrue(SpeedInterval.dashboard(for: .imperial).allSatisfy(SpeedInterval.imperial.contains))
         XCTAssertEqual(SpeedInterval.imperial.map(\.fullLabel),
-                       ["0–20 mph", "0–30 mph", "0–50 mph", "0–60 mph", "30–50 mph", "30–60 mph"])
+                       ["0–20 mph", "0–30 mph", "0–50 mph", "0–60 mph", "0–100 mph", "0–120 mph",
+                        "30–50 mph", "30–60 mph", "50–75 mph"])
         XCTAssertEqual(SpeedInterval.zeroTo100.fullLabel, "0–100 km/h")
         XCTAssertEqual(SpeedInterval.shown(for: .imperial), SpeedInterval.imperial)
         XCTAssertEqual(SpeedInterval.flagship(for: .imperial), .zeroTo60mph)
@@ -201,6 +204,26 @@ final class SprintTimerTests: XCTestCase {
         XCTAssertEqual(t.best(.thirtyTo50mph)!, 20 * SpeedInterval.kmPerMile / 10, accuracy: 0.05)
         // Les plages en km/h sont mesurées aussi.
         XCTAssertNotNil(t.best(.zeroTo100))
+    }
+
+    func testMeasuresMotorcycleMilesPerHourRanges() {
+        var t = SprintTimer()
+        t.add(timestamp: 0, speedKmh: 0)
+        // 10 km/h par seconde jusqu'à 200 km/h ; départ interpolé à 0,1 s.
+        launch(&t, start: 0, rate: 10, seconds: 21)
+        let mile: Double = SpeedInterval.kmPerMile
+        XCTAssertEqual(t.best(.zeroTo100mph)!, 100 * mile / 10 - 0.1, accuracy: 1e-6)
+        XCTAssertEqual(t.best(.zeroTo120mph)!, 120 * mile / 10 - 0.1, accuracy: 1e-6)
+        // Reprise 50–75 mph : de 80,5 à 120,7 km/h, soit environ 4 s.
+        XCTAssertEqual(t.best(.fiftyTo75mph)!, 25 * mile / 10, accuracy: 1e-6)
+        // La reprise depuis 30 mph est mesurée en même temps.
+        XCTAssertEqual(t.best(.thirtyTo60mph)!, 30 * mile / 10, accuracy: 1e-6)
+    }
+
+    func testFiftyToSeventyFiveNeedsToCrossFiftyMilesPerHourUpward() {
+        var t = SprintTimer()
+        feed(&t, start: 0, speeds: [90, 100, 110, 125])
+        XCTAssertNil(t.best(.fiftyTo75mph))
     }
 
     func testIntervalsFromEarlierVersionsStillDecode() throws {

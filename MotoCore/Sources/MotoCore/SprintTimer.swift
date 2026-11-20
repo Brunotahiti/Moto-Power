@@ -36,8 +36,11 @@ public struct SpeedInterval: Hashable, Sendable, Codable {
     public static let zeroTo30mph = SpeedInterval(from: 0, to: 30, unit: .mph)
     public static let zeroTo50mph = SpeedInterval(from: 0, to: 50, unit: .mph)
     public static let zeroTo60mph = SpeedInterval(from: 0, to: 60, unit: .mph)
+    public static let zeroTo100mph = SpeedInterval(from: 0, to: 100, unit: .mph)
+    public static let zeroTo120mph = SpeedInterval(from: 0, to: 120, unit: .mph)
     public static let thirtyTo50mph = SpeedInterval(from: 30, to: 50, unit: .mph)
     public static let thirtyTo60mph = SpeedInterval(from: 30, to: 60, unit: .mph)
+    public static let fiftyTo75mph = SpeedInterval(from: 50, to: 75, unit: .mph)
 
     /// Plages en km/h, dans l'ordre d'affichage.
     public static let metric: [SpeedInterval] = [
@@ -46,7 +49,8 @@ public struct SpeedInterval: Hashable, Sendable, Codable {
     ]
     /// Plages en mph, dans l'ordre d'affichage (0–60 mph : la référence anglo-saxonne).
     public static let imperial: [SpeedInterval] = [
-        .zeroTo20mph, .zeroTo30mph, .zeroTo50mph, .zeroTo60mph, .thirtyTo50mph, .thirtyTo60mph,
+        .zeroTo20mph, .zeroTo30mph, .zeroTo50mph, .zeroTo60mph, .zeroTo100mph, .zeroTo120mph,
+        .thirtyTo50mph, .thirtyTo60mph, .fiftyTo75mph,
     ]
     /// Toutes les plages mesurées : les deux séries le sont en même temps.
     public static let all: [SpeedInterval] = metric + imperial
@@ -57,12 +61,12 @@ public struct SpeedInterval: Hashable, Sendable, Codable {
     }
 
     /// Plages du compteur en direct : six au plus, pour tenir sur une ligne.
-    /// En km/h, les plages moto ; les autres restent mesurées et visibles
-    /// dans le résumé, les records et les statistiques.
+    /// Ce sont les plages moto ; les autres restent mesurées et visibles dans
+    /// le résumé, les records et les statistiques.
     public static func dashboard(for units: UnitSystem) -> [SpeedInterval] {
         units == .metric
             ? [.zeroTo50, .zeroTo100, .zeroTo150, .zeroTo200, .fiftyTo100, .eightyTo120]
-            : imperial
+            : [.zeroTo30mph, .zeroTo60mph, .zeroTo100mph, .zeroTo120mph, .thirtyTo60mph, .fiftyTo75mph]
     }
 
     /// Plage de référence en départ arrêté : 0–100 km/h ou 0–60 mph.
@@ -110,7 +114,8 @@ public struct SprintResult: Sendable, Equatable {
 
 /// Chronomètre les accélérations : départs arrêtés (0–30, 0–50, 0–80, 0–100,
 /// 0–150, 0–200 km/h) et reprises lancées (50–90, 50–100, 80–120 km/h), et en
-/// même temps les plages en mph (0–20, 0–30, 0–50, 0–60, 30–50, 30–60 mph).
+/// même temps les plages en mph (0–20, 0–30, 0–50, 0–60, 0–100, 0–120, 30–50,
+/// 30–60, 50–75 mph).
 ///
 /// Le GPS ne fournit qu'un point par seconde ; les instants de départ et de
 /// passage sont interpolés linéairement entre deux points.
@@ -345,7 +350,7 @@ public struct SprintTimer: Sendable {
             lanes[i].rollingGroups[g].run = run
             checkRollingTargets(lane: i, group: g, from: before, to: now)
         } else if before.speed < startSpeed, now.speed >= startSpeed {
-            // La reprise part de l'instant où sa vitesse de départ (50 ou 80 km/h, 30 mph) est franchie en accélérant.
+            // La reprise part de l'instant où sa vitesse de départ (50 ou 80 km/h, 30 ou 50 mph) est franchie en accélérant.
             let start = Self.crossing(of: startSpeed, from: before, to: now)
             lanes[i].rollingGroups[g].run = Rolling(start: start, maxSpeed: now.speed, next: 0)
             checkRollingTargets(lane: i, group: g, from: before, to: now)

@@ -78,7 +78,9 @@ du dessus, vidéo d'ouverture) ont été générés avec Higgsfield.
   0–150 et 0–200 km/h (le chrono s'arme à l'arrêt) et reprises lancées 50–90,
   50–100 et 80–120 km/h (le chrono part quand 50 ou 80 km/h est franchi en
   accélérant). Le compteur en direct en montre six : 0–50, 0–100, 0–150,
-  0–200, 50–100 et 80–120 ; les autres se lisent dans le résumé et les records. Une mesure s'annule si la
+  0–200, 50–100 et 80–120 ; les autres se lisent dans le résumé et les records.
+  En miles, les plages équivalentes sont mesurées en même temps : 0–20, 0–30,
+  0–50, 0–60, 0–100 et 0–120 mph, reprises 30–50, 30–60 et 50–75 mph. Une mesure s'annule si la
   vitesse retombe. Le GPS ne donnant qu'un point
   par seconde, les passages sont interpolés : précision d'environ 0,2 s.
 - **Inclinaison** : sous 10 km/h, direction de la gravité par rapport à la

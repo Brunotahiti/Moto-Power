@@ -1,8 +1,9 @@
 import SwiftUI
 import MotoCore
 
-/// Temps d'accélération du compteur en direct : en km/h, départs arrêtés
-/// (0–50, 0–100, 0–150, 0–200) et reprises lancées (50–100, 80–120) ; les
+/// Temps d'accélération du compteur en direct : départs arrêtés (0–50, 0–100,
+/// 0–150, 0–200 km/h, ou 0–30, 0–60, 0–100, 0–120 mph) et reprises lancées
+/// (50–100, 80–120 km/h, ou 30–60, 50–75 mph) ; les
 /// autres plages mesurées se lisent dans le résumé et les records. Pour chaque plage : le meilleur temps du
 /// trajet, une barre qui se remplit à l'approche du record, et le record
 /// tous trajets confondus. Pendant une mesure, le chrono tourne à gauche.
