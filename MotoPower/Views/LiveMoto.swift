@@ -22,9 +22,9 @@ struct LiveMoto: View {
     /// Pilote sur la moto, vu de dos : droit, penché, couché.
     static let riderImageNames = ["RiderRear0", "RiderRear1", "RiderRear2"]
     /// Proportions des images de dos (largeur / hauteur).
-    static let rearAspect: CGFloat = 545.0 / 1000.0
+    static let rearAspect: CGFloat = 522.0 / 1000.0
     /// Position du feu arrière dans l'image, en fraction de sa hauteur.
-    private static let tailLightY: CGFloat = 0.462
+    private static let tailLightY: CGFloat = 0.489
     /// Part de l'échelle de vitesse où le pilote change de posture, en montant
     /// et en descendant (un écart évite qu'il s'agite autour d'un seuil).
     private static let tuckUp: [Double] = [0.30, 0.50]
